@@ -1,67 +1,55 @@
 from functions import memfuncs
-from functions import gameinput
 from functions import logutil
 from functions.process_watcher import ProcessConnector
-import win32api, win32gui
 import time
 
+
 def FovChangerThreadFunction(Options, Offsets):
+    """Dedicated FOV changer. Writes only when EnableFovChanger is true and FOV changes."""
+    connector = ProcessConnector("cs2.exe", modules=["client.dll"])
 
-	connector = ProcessConnector("cs2.exe", modules=["client.dll"])
+    last_fov_written = None
 
-	while True:
-		try:
-			processHandle = connector.ensure_process()
-			clientBaseAddress = connector.ensure_module("client.dll")
+    def _clamp(v, lo, hi):
+        try:
+            return max(lo, min(hi, int(v)))
+        except Exception:
+            return lo
 
-			localPlayer = memfuncs.ProcMemHandler.ReadPointer(processHandle, clientBaseAddress + Offsets.offset.dwLocalPlayerPawn)
-			if not localPlayer:
-				time.sleep(0.01)
-				continue
+    while True:
+        try:
+            process = connector.ensure_process()
+            client = connector.ensure_module("client.dll")
 
-			cameraServices = memfuncs.ProcMemHandler.ReadPointer(processHandle, localPlayer + Offsets.offset.m_pCameraServices)
-			if not cameraServices:
-				time.sleep(0.01)
-				continue
+            if not Options.get("EnableFovChanger", False):
+                last_fov_written = None
+                time.sleep(0.01)
+                continue
 
-			flash_alpha = 0.0 if Options["EnableAntiFlashbang"] else 255.0
-			memfuncs.ProcMemHandler.WriteFloat(
-				processHandle,
-				localPlayer + Offsets.offset.m_flFlashMaxAlpha,
-				flash_alpha
-			)
+            local_pawn = memfuncs.ProcMemHandler.ReadPointer(process, client + Offsets.offset.dwLocalPlayerPawn)
+            if not local_pawn:
+                time.sleep(0.005)
+                continue
 
-			if (win32gui.GetWindowText(win32gui.GetForegroundWindow()) == "Counter-Strike 2"
-					and Options["EnableTriggerbot"]
-					and (win32api.GetAsyncKeyState(Options["TriggerbotKey"]) or not Options["EnableTriggerbotKeyCheck"])):
-				localPlayerID = memfuncs.ProcMemHandler.ReadInt(processHandle, localPlayer + Offsets.offset.m_iIDEntIndex)
-				if localPlayerID > 0:
-					entityList = memfuncs.ProcMemHandler.ReadPointer(processHandle, clientBaseAddress + Offsets.offset.dwEntityList)
-					if not entityList:
-						time.sleep(0.01)
-						continue
-					entityListEntry = memfuncs.ProcMemHandler.ReadPointer(processHandle, entityList + 0x8 * (localPlayerID >> 9) + 0x10)
-					if not entityListEntry:
-						time.sleep(0.01)
-						continue
-					TargetEntity = memfuncs.ProcMemHandler.ReadPointer(processHandle, entityListEntry + 112 * (localPlayerID & 0x1FF))
-					if not TargetEntity:
-						time.sleep(0.01)
-						continue
+            camera_services = memfuncs.ProcMemHandler.ReadPointer(process, local_pawn + Offsets.offset.m_pCameraServices)
+            if not camera_services:
+                time.sleep(0.005)
+                continue
 
-					TargetEntityTeam = memfuncs.ProcMemHandler.ReadInt(processHandle, TargetEntity + Offsets.offset.m_iTeamNum)
-					localPlayerTeam = memfuncs.ProcMemHandler.ReadInt(processHandle, localPlayer + Offsets.offset.m_iTeamNum)
+            desired_fov = _clamp(Options.get("FovChangeSize", 90), 60, 140)
+            if desired_fov != last_fov_written:
+                try:
+                    memfuncs.ProcMemHandler.WriteInt(process, camera_services + Offsets.offset.m_iFOV, desired_fov)
+                    last_fov_written = desired_fov
+                except Exception:
+                    pass
 
-					if not Options["EnableTriggerbotTeamCheck"] or TargetEntityTeam != localPlayerTeam:
-						TargetEntityHP = memfuncs.ProcMemHandler.ReadInt(processHandle, TargetEntity + Offsets.offset.m_iHealth)
-						if TargetEntityHP > 0 and not win32api.GetAsyncKeyState(0x01):
-							gameinput.LeftClick()
+            time.sleep(0.003)
 
-		except Exception as exc:
-			logutil.debug(f"[fovchanger] loop exception: {exc}")
-			connector.invalidate()
-			time.sleep(0.05)
-
+        except Exception as exc:
+            logutil.debug(f"[fovchanger] loop exception: {exc}")
+            connector.invalidate()
+            time.sleep(0.01)
 
 
 

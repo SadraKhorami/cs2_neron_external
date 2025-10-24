@@ -55,6 +55,10 @@ CHEAT_SETTINGS = {
 
     "EnableShowSpectators": True,
 
+    # Overlay font backend. Raylib font may use more memory on some pyMeow builds,
+    # but provides best compatibility. Keep enabled by default; you can toggle in settings.
+    "EnableOverlayRaylibFont": True,
+
 }
 
 

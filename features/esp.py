@@ -38,10 +38,14 @@ _COLOR_CACHE = {}
 _RAYLIB_FONT_ID = None
 _RAYLIB_FONT_ATTEMPTED = False
 _RAYLIB_FONT_TARGET_ID = 7 
+_ALLOW_RAYLIB_FONT = True
 
 
 def _ensure_raylib_font():
     global _RAYLIB_FONT_ID, _RAYLIB_FONT_ATTEMPTED
+    # If disabled, don't attempt to load
+    if not _ALLOW_RAYLIB_FONT:
+        return None
     if _RAYLIB_FONT_ATTEMPTED:
         return _RAYLIB_FONT_ID
     _RAYLIB_FONT_ATTEMPTED = True
@@ -290,7 +294,13 @@ def _neron_has_focus():
             return os.path.basename(exe).lower() == "cs2.exe"
         except Exception:
             title = (win32gui.GetWindowText(hwnd) or "").lower()
-            return ("Counter-Strike 2" in title) 
+            return ("Counter-Strike 2" in title)
+        finally:
+            # Avoid handle leaks on frequent focus checks
+            try:
+                win32api.CloseHandle(h)
+            except Exception:
+                pass
     except Exception:
         return False
 
@@ -305,6 +315,17 @@ def ESP_Update(processHandle, clientBaseAddress, Options, Offsets, SharedBombSta
         return
 
     try:
+        # Update font-backend policy from options once per frame
+        global _ALLOW_RAYLIB_FONT, _RAYLIB_FONT_ATTEMPTED
+        try:
+            allow = Options.get("EnableOverlayRaylibFont", True)
+        except Exception:
+            allow = True
+        # If toggled from off->on, allow re-attempting load
+        if allow and not _ALLOW_RAYLIB_FONT:
+            _RAYLIB_FONT_ATTEMPTED = False
+        _ALLOW_RAYLIB_FONT = bool(allow)
+
         localPlayerEnt_pawnAddress = memfuncs.ProcMemHandler.ReadPointer(processHandle, clientBaseAddress + Offsets.offset.dwLocalPlayerPawn)
         localPlayerEnt_controllerAddress = memfuncs.ProcMemHandler.ReadPointer(processHandle, clientBaseAddress + Offsets.offset.dwLocalPlayerController)
         localPlayerEnt_Team = memfuncs.ProcMemHandler.ReadInt(processHandle, localPlayerEnt_pawnAddress + Offsets.offset.m_iTeamNum)

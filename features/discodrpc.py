@@ -12,15 +12,15 @@ def DiscordRpcThread(Options):
 					if not a:
 						try:
 							presence.update(
-								state="khorami.dev",
-								details="Counter-Strike 2 best story mode game",
-								start=int(time.time()),
-								large_image="cpunk",
-								large_text="cpunk",
-								small_image="cpunk",
-								small_text="cpunk on top",
-								buttons=[{'label': 'website', 'url': 'khorami.dev/cpunk'}]
-							)
+									state="cs2_neron_external",
+									details="External CS2 research tool — ESP · Aimbot · Triggerbot (analysis only)",
+									start=int(time.time()),
+									large_image="cs2_neron",
+									large_text="cs2_neron_external",
+									small_image="khorami",
+									small_text="khorami.dev",
+									buttons=[{'label': 'Project page', 'url': 'https://github.com/SadraKhorami/cs2_neron_external'}]
+								)
 						except Exception as e:
 							pass
 					a = True

@@ -3,11 +3,12 @@ from functions import memfuncs
 from functions import logutil
 
 from features import aimbot
-from features import combined
 from features import rcs
 from features import esp
 from features import bombtimer
 from features import fovchanger
+from features import antiflash
+from features import triggerbot
 from features import bhop
 from features import discodrpc
 from features import spectator
@@ -120,7 +121,23 @@ if __name__ == "__main__":
 
     # FOV changer
     FOV_proc = multiprocessing.Process(target=fovchanger.FovChangerThreadFunction, args=(SharedOptions, SharedOffsets,))
+    FOV_proc.daemon = True
     FOV_proc.start()
+
+    # Anti-Flash (separate worker)
+    AntiFlash_proc = multiprocessing.Process(target=antiflash.AntiFlashThreadFunction, args=(SharedOptions, SharedOffsets,))
+    AntiFlash_proc.daemon = True
+    AntiFlash_proc.start()
+
+    # Triggerbot (separate worker)
+    Trigger_proc = multiprocessing.Process(target=triggerbot.TriggerbotThreadFunction, args=(SharedOptions, SharedOffsets,))
+    Trigger_proc.daemon = True
+    Trigger_proc.start()
+
+    # Bhop (separate thread to keep sleeps off overlay thread)
+    Bhop_proc = multiprocessing.Process(target=bhop.BhopThreadFunction, args=(SharedOptions, SharedOffsets,))
+    Bhop_proc.daemon = True
+    Bhop_proc.start()
 
     # Bomb timer
     SharedBombState = Manager.Namespace()
@@ -173,10 +190,8 @@ if __name__ == "__main__":
             if SharedOptions["EnableAimbot"] and win32api.GetAsyncKeyState(SharedOptions["AimbotKey"]) & 0x8000:
                 aimbot.Aimbot_Update(ProcessObject, ClientModuleAddress, SharedOffsets, SharedOptions, ARDUINO_HANDLE=ARDUINO_HANDLE)
 
-            if SharedOptions["EnableBhop"]:
-                bhop.Bhop_Update(ProcessObject, ClientModuleAddress, SharedOffsets)
-
-            combined.Triggerbot_AntiFlash_Update(ProcessObject, ClientModuleAddress, SharedOffsets, SharedOptions)
+            # bhop and triggerbot/anti-flash are now handled in their own threads
+            # to avoid sleeps inside the overlay frame
             rcs.RecoilControl_Update(ProcessObject, ClientModuleAddress, SharedOffsets, SharedOptions, ARDUINO_HANDLE=ARDUINO_HANDLE)
         except Exception:
             connector.invalidate()
