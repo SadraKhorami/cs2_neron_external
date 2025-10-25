@@ -61,7 +61,6 @@ class NERON_GUI:
         self.build_ui()
         self.add_event_handlers()
 
-    # ---- utils
     def hex_to_rgb(self, hex_code):
         hex_code = hex_code.lstrip('#')
         return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
@@ -104,7 +103,6 @@ class NERON_GUI:
         candidates = []
         if path:
             candidates.append(path)
-        # Common relative locations for bundled fonts
         base_dir = os.path.dirname(__file__)
         repo_dir = os.path.abspath(os.path.join(base_dir, ".."))
         font_name = "inter-semibold.ttf"
@@ -114,7 +112,6 @@ class NERON_GUI:
                 anchors=[base_dir, repo_dir],
             )
         )
-        # Deduplicate while keeping order
         seen = set()
         candidates = [c for c in candidates if not (c in seen or seen.add(c))]
         try:
@@ -233,7 +230,6 @@ class NERON_GUI:
                 dpg.add_theme_style(dpg.mvStyleVar_ChildBorderSize, 1)
         dpg.bind_theme(theme)
 
-    # ---- drag helpers
     def lerp(self, a, b, t): return a + (b - a) * t
     def is_dragging(self, _, data):
         if dpg.is_mouse_button_down(0):
@@ -280,13 +276,10 @@ class NERON_GUI:
         ) as root:
             self.root_window = root
 
-            # dpg.add_spacer(height=6)
             header_group = dpg.add_group()
             dpg.add_text("Control Panel", color=self.palette["accent"], parent=header_group)
-            dpg.add_text("INS: Toggle Menu    END: Quit    HOME: Streamproof", color=self.palette["text_muted"], parent=header_group)
-            dpg.add_spacer(height=12, parent=header_group)
+            dpg.add_spacer(height=2, parent=header_group)
             dpg.add_separator(parent=header_group)
-            dpg.add_spacer(height=10, parent=header_group)
 
             with dpg.tab_bar():
                 self._build_tab_aimbot()
@@ -303,17 +296,14 @@ class NERON_GUI:
             no_scrollbar=True,
             border=True
         ) as container:
-            dpg.add_spacer(height=6, parent=container)
             header = dpg.add_group(parent=container)
             dpg.add_text(title, color=self.palette["accent"], parent=header)
             if subtitle:
-                dpg.add_spacer(height=2, parent=header)
                 dpg.add_text(
                     subtitle,
                     color=self.palette["text_subtle"],
                     parent=header
                 )
-            dpg.add_spacer(height=6, parent=container)
             dpg.add_separator(parent=container)
             dpg.add_spacer(height=10, parent=container)
             content = dpg.add_group(parent=container)
@@ -335,16 +325,50 @@ class NERON_GUI:
     def _build_tab_visuals(self):
         with dpg.tab(label="ESP & Visuals"):
             card = self._tab_card("ESP & Visuals", "Configure intel overlays for story or squad practice.")
-            self._config_checkbox("Enable ESP Team Check", "EnableESPTeamCheck", parent=card)
-            self._config_checkbox("Enable Skeleton Rendering", "EnableESPSkeletonRendering", parent=card)
-            self._config_checkbox("Enable Box Rendering", "EnableESPBoxRendering", parent=card)
-            self._config_checkbox("Enable Tracer Rendering", "EnableESPTracerRendering", parent=card)
-            self._config_checkbox("Enable Name Rendering", "EnableESPNameText", parent=card)
-            self._config_checkbox("Enable Health Bar Rendering", "EnableESPHealthBarRendering", parent=card)
-            self._config_checkbox("Enable Health Text", "EnableESPHealthText", parent=card)
-            self._config_checkbox("Enable Distance Text", "EnableESPDistanceText", parent=card)
-            dpg.add_separator(parent=card)
-            self._config_checkbox("Enable Bomb Timer", "EnableESPBombTimer", parent=card)
+
+            with dpg.group(horizontal=True, horizontal_spacing=18, parent=card):
+                left_col = dpg.add_child_window(width=int(self.viewport_width*0.30), autosize_y=True, no_scrollbar=True, border=True)
+                right_col = dpg.add_child_window(width=int(self.viewport_width*0.60), autosize_y=True, no_scrollbar=True, border=True)
+
+                dpg.add_text("Renderers", color=self.palette["text_muted"], parent=left_col)
+                with dpg.group(horizontal=True, horizontal_spacing=24, parent=left_col):
+                    r1c1 = dpg.add_group()
+                    r1c2 = dpg.add_group()
+                    self._config_checkbox("Skeleton", "EnableESPSkeletonRendering", parent=r1c1)
+                    self._config_checkbox("Box", "EnableESPBoxRendering", parent=r1c1)
+                    self._config_checkbox("Tracer", "EnableESPTracerRendering", parent=r1c2)
+                    self._config_checkbox("Team Check", "EnableESPTeamCheck", parent=r1c2)
+
+             
+
+                dpg.add_spacer(height=6, parent=left_col)
+                dpg.add_text("Labels", color=self.palette["text_muted"], parent=left_col)
+                with dpg.group(horizontal=True, horizontal_spacing=24, parent=left_col):
+                    r2c1 = dpg.add_group()
+                    r2c2 = dpg.add_group()
+                    self._config_checkbox("Name", "EnableESPNameText", parent=r2c1)
+                    self._config_checkbox("Distance", "EnableESPDistanceText", parent=r2c1)
+                    self._config_checkbox("Health Text", "EnableESPHealthText", parent=r2c2)
+                    self._config_checkbox("Health Bar", "EnableESPHealthBarRendering", parent=r2c2)
+
+                dpg.add_text("Styling & Thickness", color=self.palette["text_muted"], parent=right_col)
+                dpg.add_spacer(height=2, parent=right_col)
+                dpg.add_text("Health Synchronization", color=self.palette["text_subtle"], parent=right_col)
+                self._config_checkbox("Skeleton follows health", "ESP_HealthSyncSkeleton", default=True, parent=right_col)
+                self._config_checkbox("Health bar follows health", "ESP_HealthSyncBar", default=True, parent=right_col)
+                dpg.add_spacer(height=6, parent=right_col)
+                dpg.add_separator(parent=right_col)
+                dpg.add_spacer(height=6, parent=right_col)
+                dpg.add_text("Thickness", color=self.palette["text_subtle"], parent=right_col)
+                s1 = self._config_slider_float("Skeleton scale", "ESP_SkeletonThicknessScale", 1.0, 0.6, 2.0, parent=right_col)
+                s2 = self._config_slider_float("Box scale", "ESP_BoxThicknessScale", 1.0, 0.6, 2.0, parent=right_col)
+                s3 = self._config_slider_float("Health bar width", "ESP_HealthBarThicknessScale", 1.0, 0.6, 1.6, parent=right_col)
+                try:
+                    dpg.configure_item(s1, width=int(self.control_width*1.4))
+                    dpg.configure_item(s2, width=int(self.control_width*1.4))
+                    dpg.configure_item(s3, width=int(self.control_width*1.4))
+                except Exception:
+                    pass
 
     def _build_tab_triggerbot(self):
         with dpg.tab(label="Triggerbot"):
@@ -511,21 +535,21 @@ class NERON_GUI:
     def _build_tab_misc(self):
         with dpg.tab(label="Misc"):
             card = self._tab_card("Utilities", "Quality-of-life toggles and quick boosts.")
+            self._config_checkbox("Enable Bomb Timer", "EnableESPBombTimer", parent=card)
             self._config_checkbox("Enable Anti Flashbang", "EnableAntiFlashbang", parent=card)
-            dpg.add_separator(parent=card)
             self._config_checkbox("Enable Bhop", "EnableBhop", parent=card)
-            dpg.add_separator(parent=card)
+            
             self._config_checkbox("Enable Discord RPC", "EnableDiscordRPC", parent=card)
-            dpg.add_separator(parent=card)
-            self._config_checkbox("Enable FOV Changer", "EnableFovChanger", parent=card)
-            self._config_slider_int("Set FOV", "FovChangeSize", 90, 50, 170, parent=card)
-            dpg.add_spacer(height=8, parent=card)
+            
             dpg.add_checkbox(
                 label="Show Spectators Watching Me (in-game)",
                 default_value=self.config.get("EnableShowSpectators", False),
                 callback=self._on_toggle_spectators,
                 parent=card,
             )
+            
+            self._config_checkbox("Enable FOV Changer", "EnableFovChanger", parent=card)
+            self._config_slider_int("Set FOV", "FovChangeSize", 90, 50, 170, parent=card)
 
     def _build_tab_triggerbot(self):
         with dpg.tab(label="Triggerbot"):

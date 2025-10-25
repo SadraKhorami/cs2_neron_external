@@ -20,10 +20,25 @@ def _find_overlay_font():
 
     base_dir = os.path.dirname(__file__)
     repo_dir = os.path.abspath(os.path.join(base_dir, ".."))
-    _OVERLAY_FONT_PATH = fontpaths.locate_font(
-        anchors=[base_dir, repo_dir],
-    )
 
+    # Try bundled first
+    path = fontpaths.locate_font(anchors=[base_dir, repo_dir])
+
+    # System fallback (Windows)
+    if not path:
+        try:
+            windir = os.environ.get("WINDIR") or os.environ.get("SystemRoot")
+            if windir:
+                fonts_dir = os.path.join(windir, "Fonts")
+                for fname in ("segoeui.ttf", "arial.ttf", "verdana.ttf"):
+                    cand = os.path.join(fonts_dir, fname)
+                    if os.path.exists(cand):
+                        path = cand
+                        break
+        except Exception:
+            path = None
+
+    _OVERLAY_FONT_PATH = path
     _OVERLAY_FONT_PROBED = True
     if _OVERLAY_FONT_PATH:
         logutil.debug(f"[esp] overlay font found: {_OVERLAY_FONT_PATH}")
@@ -38,14 +53,10 @@ _COLOR_CACHE = {}
 _RAYLIB_FONT_ID = None
 _RAYLIB_FONT_ATTEMPTED = False
 _RAYLIB_FONT_TARGET_ID = 7 
-_ALLOW_RAYLIB_FONT = True
 
 
 def _ensure_raylib_font():
     global _RAYLIB_FONT_ID, _RAYLIB_FONT_ATTEMPTED
-    # If disabled, don't attempt to load
-    if not _ALLOW_RAYLIB_FONT:
-        return None
     if _RAYLIB_FONT_ATTEMPTED:
         return _RAYLIB_FONT_ID
     _RAYLIB_FONT_ATTEMPTED = True
@@ -98,15 +109,19 @@ def _draw_text_with_font(text, x, y, *, size, color):
     except Exception:
         col = color
 
+    xi = int(round(x))
+    yi = int(round(y))
+    sz = max(10, int(round(size)))
+
     font_id = _ensure_raylib_font()
     if font_id is not None:
         try:
             pme.draw_font(
                 fontId=font_id,
                 text=str(text),
-                posX=int(round(x)),
-                posY=int(round(y)),
-                fontSize=int(round(size)),
+                posX=xi,
+                posY=yi,
+                fontSize=sz,
                 spacing=0,
                 tint=col
             )
@@ -114,10 +129,10 @@ def _draw_text_with_font(text, x, y, *, size, color):
         except Exception:
             pass
 
-    font_handle = _get_overlay_font_handle(size)
+    font_handle = _get_overlay_font_handle(sz)
     if font_handle:
         try:
-            pme.draw_text(text, x, y, fontSize=size, color=col, font=font_handle)
+            pme.draw_text(text, xi, yi, fontSize=sz, color=col, font=font_handle)
             return
         except TypeError:
             pass
@@ -125,13 +140,13 @@ def _draw_text_with_font(text, x, y, *, size, color):
             pass
         try:
             with spectator._FontScope(pme, font_handle):
-                pme.draw_text(text, x, y, fontSize=size, color=col)
+                pme.draw_text(text, xi, yi, fontSize=sz, color=col)
                 return
         except Exception:
             pass
 
     try:
-        pme.draw_text(text, x, y, fontSize=size, color=col)
+        pme.draw_text(text, xi, yi, fontSize=sz, color=col)
     except Exception:
         pass
 
@@ -234,12 +249,59 @@ def _resolve_color(color):
     _COLOR_CACHE[color] = resolved
     return resolved
 
+
+def _clamp(v, lo, hi):
+    try:
+        return max(lo, min(hi, float(v)))
+    except Exception:
+        return lo
+
+
+def _lerp(a, b, t):
+    return a + (b - a) * t
+
+
+def _lerp_color_hex(hex_a: str, hex_b: str, t: float) -> str:
+    def to_rgb(h):
+        h = h.lstrip('#')
+        return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    def to_hex(rgb):
+        r, g, b = [int(_clamp(x, 0, 255)) for x in rgb]
+        return f"#{r:02X}{g:02X}{b:02X}"
+    ra, ga, ba = to_rgb(hex_a)
+    rb, gb, bb = to_rgb(hex_b)
+    r = _lerp(ra, rb, t)
+    g = _lerp(ga, gb, t)
+    b = _lerp(ba, bb, t)
+    return to_hex((r, g, b))
+
+
+def _health_color_hex(health: int) -> str:
+    h = int(_clamp(health, 0, 100))
+    if h <= 50:
+        # red (#FF3B30) to orange-yellow (#F59E0B)
+        t = h / 50.0
+        return _lerp_color_hex("#FF3B30", "#F59E0B", t)
+    else:
+        # orange-yellow to green (#22C55E)
+        t = (h - 50) / 50.0
+        return _lerp_color_hex("#F59E0B", "#22C55E", t)
+
 def _draw_shadowed_text(text, x, y, size=12, color="#FFFFFF"):
+    """Crisp text helper: minimal shadow for small sizes, fuller outline for larger."""
     base = _resolve_color(color)
-    shadow = pme.fade_color(_resolve_color("#000000"), 0.65)
-    for ox, oy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-        _draw_text_with_font(text, x + ox, y + oy, size=size, color=shadow)
-    _draw_text_with_font(text, x, y, size=size, color=base)
+    sz = int(round(size))
+    if sz <= 15:
+        # Minimal 1px drop for sharp small text
+        shadow = pme.fade_color(_resolve_color("#000000"), 0.55)
+        _draw_text_with_font(text, int(round(x))+1, int(round(y))+1, size=sz, color=shadow)
+        _draw_text_with_font(text, int(round(x)), int(round(y)), size=sz, color=base)
+    else:
+        # Soft 4-direction outline for larger headings
+        shadow = pme.fade_color(_resolve_color("#000000"), 0.65)
+        for ox, oy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            _draw_text_with_font(text, x + ox, y + oy, size=sz, color=shadow)
+        _draw_text_with_font(text, x, y, size=sz, color=base)
 
 def draw_name(pme, player_name, x, y, color="#FFFFFF", font_size=12):
     if player_name:
@@ -251,12 +313,48 @@ def draw_distance(pme, x, y, distance, color="#FFFFFF", font_size=12):
 def draw_health_text(pme, x, y, health, color="#FFFFFF", font_size=12):
     _draw_shadowed_text(f"HP: {int(health)}", x, y, size=font_size, color=color)
 
-def draw_health_bar(pme, health, x, y, height, bar_width=6, background_color="#303030", health_color="#94F3BF", outline_color="#303030"):
-	pme.draw_rectangle(x - bar_width - 5, y, bar_width, height, color=pme.get_color(background_color))
-	health_percentage = min(1.0, health / 100.0)
-	filled_height = height * health_percentage
-	pme.draw_rectangle(x - bar_width - 5, y + (height - filled_height), bar_width, filled_height, color=pme.get_color(health_color))
-	pme.draw_rectangle_lines(x - bar_width - 5, y, bar_width, height, color=pme.get_color(outline_color), lineThick=1)
+def draw_health_bar(pme, health, x, y, height, bar_width=None, thickness_scale=1.0, use_health_color=True, team_color=None):
+    if bar_width is None:
+        bw = _clamp(height * 0.02, 2.0, 6.0) 
+    else:
+        bw = float(bar_width)
+
+    # Apply user scale
+    try:
+        bw *= float(thickness_scale or 1.0)
+    except Exception:
+        pass
+    bw = _clamp(bw, 1.0, 8.0)
+
+    track_x = int(round(x)) - (int(round(bw)) + 6)
+    track_y = int(round(y))
+    track_h = int(round(height))
+    track_w = int(round(bw))
+
+    # Colors
+    col_bg = pme.get_color("#111418")
+    col_border = pme.get_color("#29313A")
+    if use_health_color:
+        col_fill = pme.get_color(_health_color_hex(int(health)))
+    else:
+        col_fill = team_color if isinstance(team_color, tuple) else pme.get_color("#22C55E")
+
+    # Track
+    pme.draw_rectangle(track_x, track_y, track_w, track_h, color=col_bg)
+    pme.draw_rectangle_lines(track_x, track_y, track_w, track_h, color=col_border, lineThick=1)
+
+    # Fill (from bottom up)
+    ratio = max(0.0, min(1.0, (health or 0) / 100.0))
+    filled = int(round(track_h * ratio))
+    if filled > 0:
+        pme.draw_rectangle(track_x, track_y + (track_h - filled), track_w, filled, color=col_fill)
+
+    # Segments (ticks)
+    segs = 5
+    tick_col = pme.fade_color(col_border, 0.9)
+    for s in range(1, segs):
+        yy = track_y + int(round(track_h * (s / segs)))
+        pme.draw_line(track_x, yy, track_x + track_w, yy, color=tick_col, thick=1)
 
 def draw_tracer(pme, start_x, start_y, end_x, end_y, color, thickness=1.5):
     if end_y != -1:
@@ -264,22 +362,66 @@ def draw_tracer(pme, start_x, start_y, end_x, end_y, color, thickness=1.5):
         pme.draw_line(start_x, start_y, end_x, end_y, color=pme.fade_color(col, 0.75), thick=thickness)
         pme.draw_line(start_x, start_y, end_x, end_y, color=col, thick=0.8)
 
-def draw_skeleton(pme, bones, bone_connections, color):
+def draw_skeleton(pme, bones, bone_connections, color, thickness=None, joint_radius=None):
+    """Stylized skeleton with distance-aware thickness and joint dots."""
+    col = _resolve_color(color)
+
+    # Auto-derive scale if not provided via rect height
+    if thickness is None or joint_radius is None:
+        try:
+            xs = [pt.x for pt in bones.values()]
+            ys = [pt.y for pt in bones.values()]
+            scale = max(max(xs) - min(xs), max(ys) - min(ys))
+        except Exception:
+            scale = 50.0
+        if thickness is None:
+            thickness = _clamp(scale * 0.02, 1.0, 2.2)
+        if joint_radius is None:
+            joint_radius = int(round(_clamp(scale * 0.03, 1.0, 3.0)))
+
+    # draw bone segments
     for start_bone, end_bone in bone_connections:
         if start_bone in bones and end_bone in bones:
-            start = bones[start_bone]
-            end = bones[end_bone]
-            offset_x = (end.x - start.x)
-            offset_y = (end.y - start.y)
-            pme.draw_line(start.x + offset_x, start.y + offset_y, end.x - offset_x, end.y - offset_y, color=_resolve_color(color), thick=1.2)
+            s = bones[start_bone]
+            e = bones[end_bone]
+            pme.draw_line(s.x, s.y, e.x, e.y, color=col, thick=thickness)
+    # draw joints (filled circles)
+    try:
+        for _, pt in bones.items():
+            pme.draw_circle(int(pt.x), int(pt.y), int(joint_radius), color=col)
+    except Exception:
+        pass
 
-def draw_box(pme, rect_left, rect_top, rect_width, rect_height, color):
-    base_col = _resolve_color(color)
-    fill_col = pme.fade_color(base_col, 0.22)
-    soft_border = pme.fade_color(base_col, 0.6)
-    pme.draw_rectangle(rect_left, rect_top, rect_width, rect_height, color=fill_col)
-    pme.draw_rectangle_lines(rect_left, rect_top, rect_width, rect_height, color=soft_border, lineThick=1.2)
-    pme.draw_rectangle_lines(rect_left - 1, rect_top - 1, rect_width + 2, rect_height + 2, color=base_col, lineThick=1.0)
+def draw_box(pme, rect_left, rect_top, rect_width, rect_height, color, thickness_scale=1.0):
+    """Corner bracket box with distance-aware scaling to stay clean at range."""
+    base = _resolve_color(color)
+    x1, y1 = int(rect_left), int(rect_top)
+    x2, y2 = int(rect_left + rect_width), int(rect_top + rect_height)
+
+    size = max(1.0, float(min(rect_width, rect_height)))
+    L = int(max(4.0, min(24.0, size * 0.22)))
+    T = max(1.3, min(2.6, size * 0.018))
+    try:
+        T *= float(thickness_scale or 1.0)
+    except Exception:
+        pass
+    T = max(0.8, min(3.2, T))
+
+    fade = max(0.65, min(1.0, size / 120.0))
+    col = pme.fade_color(base, fade)
+
+    # top-left
+    pme.draw_line(x1, y1, x1 + L, y1, color=col, thick=T)
+    pme.draw_line(x1, y1, x1, y1 + L, color=col, thick=T)
+    # top-right
+    pme.draw_line(x2, y1, x2 - L, y1, color=col, thick=T)
+    pme.draw_line(x2, y1, x2, y1 + L, color=col, thick=T)
+    # bottom-left
+    pme.draw_line(x1, y2, x1 + L, y2, color=col, thick=T)
+    pme.draw_line(x1, y2, x1, y2 - L, color=col, thick=T)
+    # bottom-right
+    pme.draw_line(x2, y2, x2 - L, y2, color=col, thick=T)
+    pme.draw_line(x2, y2, x2, y2 - L, color=col, thick=T)
 
 
 def _neron_has_focus():
@@ -306,7 +448,6 @@ def _neron_has_focus():
 
 
 def ESP_Update(processHandle, clientBaseAddress, Options, Offsets, SharedBombState, SharedRuntime=None):
-    # Only render when neron actually has focus (prevents overlay glitches under exclusive fullscreen)
     if not _neron_has_focus():
         try:
             pme.end_drawing()
@@ -315,16 +456,6 @@ def ESP_Update(processHandle, clientBaseAddress, Options, Offsets, SharedBombSta
         return
 
     try:
-        # Update font-backend policy from options once per frame
-        global _ALLOW_RAYLIB_FONT, _RAYLIB_FONT_ATTEMPTED
-        try:
-            allow = Options.get("EnableOverlayRaylibFont", True)
-        except Exception:
-            allow = True
-        # If toggled from off->on, allow re-attempting load
-        if allow and not _ALLOW_RAYLIB_FONT:
-            _RAYLIB_FONT_ATTEMPTED = False
-        _ALLOW_RAYLIB_FONT = bool(allow)
 
         localPlayerEnt_pawnAddress = memfuncs.ProcMemHandler.ReadPointer(processHandle, clientBaseAddress + Offsets.offset.dwLocalPlayerPawn)
         localPlayerEnt_controllerAddress = memfuncs.ProcMemHandler.ReadPointer(processHandle, clientBaseAddress + Offsets.offset.dwLocalPlayerController)
@@ -334,15 +465,12 @@ def ESP_Update(processHandle, clientBaseAddress, Options, Offsets, SharedBombSta
         viewMatrix = memfuncs.ProcMemHandler.ReadMatrix(processHandle, clientBaseAddress + Offsets.offset.dwViewMatrix)
         EntityList = memfuncs.ProcMemHandler.ReadPointer(processHandle, clientBaseAddress + Offsets.offset.dwEntityList)
     except Exception:
-        # If any of these fail, don't crash the frame; still begin/end drawing so the overlay stays alive
         viewMatrix = None
         EntityList = None
 
-    # Begin frame
     try:
         pme.begin_drawing()
     except Exception:
-        # Guard against begin failures
         return
 
     overlay_font_path = _find_overlay_font()
@@ -367,10 +495,13 @@ def ESP_Update(processHandle, clientBaseAddress, Options, Offsets, SharedBombSta
             font_size=16
         )
     except Exception:
-        # Never let HUD block break the ESP pass
         pass
 
-    # --- entities loop ---
+    try:
+        viewMatrix = memfuncs.ProcMemHandler.ReadMatrix(processHandle, clientBaseAddress + Offsets.offset.dwViewMatrix)
+    except Exception:
+        pass
+
     if viewMatrix is None or EntityList is None:
         try:
             pme.end_drawing()
@@ -454,9 +585,30 @@ def ESP_Update(processHandle, clientBaseAddress, Options, Offsets, SharedBombSta
             info_y = rect_top + 4
 
             resolved_color = t_color_resolved if team == 2 else ct_color_resolved
+            health_hex = _health_color_hex(int(health))
+            try:
+                sync_skel = bool(Options.get("ESP_HealthSyncSkeleton", True))
+            except Exception:
+                sync_skel = True
+            try:
+                sync_bar = bool(Options.get("ESP_HealthSyncBar", True))
+            except Exception:
+                sync_bar = True
+            try:
+                skel_scale = float(Options.get("ESP_SkeletonThicknessScale", 1.0) or 1.0)
+            except Exception:
+                skel_scale = 1.0
+            try:
+                box_scale = float(Options.get("ESP_BoxThicknessScale", 1.0) or 1.0)
+            except Exception:
+                box_scale = 1.0
+            try:
+                bar_scale = float(Options.get("ESP_HealthBarThicknessScale", 1.0) or 1.0)
+            except Exception:
+                bar_scale = 1.0
 
             if opt_box:
-                draw_box(pme, rect_left, rect_top, rect_width, rect_height, color=resolved_color)
+                draw_box(pme, rect_left, rect_top, rect_width, rect_height, color=resolved_color, thickness_scale=box_scale)
 
             info_cursor = info_y
             if opt_name:
@@ -473,7 +625,16 @@ def ESP_Update(processHandle, clientBaseAddress, Options, Offsets, SharedBombSta
                 draw_health_text(pme, info_x, info_cursor, health, color="#82FFAE")
 
             if opt_health_bar:
-                draw_health_bar(pme, health, rect_left, rect_top, rect_height)
+                draw_health_bar(
+                    pme,
+                    health,
+                    rect_left,
+                    rect_top,
+                    rect_height,
+                    thickness_scale=bar_scale,
+                    use_health_color=sync_bar,
+                    team_color=resolved_color,
+                )
 
             if opt_tracer:
                 draw_tracer(pme, screen_w // 2, screen_h, rect_center_x, rect_center_y, color=resolved_color)
@@ -488,17 +649,18 @@ def ESP_Update(processHandle, clientBaseAddress, Options, Offsets, SharedBombSta
                     bone_pos = memfuncs.ProcMemHandler.ReadVec(processHandle, bone_array + bone_index * 32)
                     bones[bone_name] = calculations.world_to_screen(viewMatrix, bone_pos)
 
-                draw_skeleton(pme, bones, boneConnections, color=resolved_color)
+                sk_thick = max(0.9, min(1.8, rect_height * 0.012)) * skel_scale
+                sk_radius = int(max(1.0, min(3.0, rect_height * 0.02)))
+                skel_col = health_hex if sync_skel else (resolved_color if isinstance(resolved_color, str) else resolved_color)
+                draw_skeleton(pme, bones, boneConnections, color=skel_col, thickness=sk_thick, joint_radius=sk_radius)
         except Exception:
             continue
 
-    # FOV circle
     try:
         pme.draw_circle_lines(globals.SCREEN_WIDTH // 2, globals.SCREEN_HEIGHT // 2, Options["AimbotFOV"], pme.get_color(Options["FOV_color"]))
     except Exception:
         pass
 
-    # Bomb timer block (modern card)
     try:
         if Options.get("EnableESPBombTimer", False) and SharedBombState is not None:
             planted = getattr(SharedBombState, "bombPlanted", False)
@@ -513,7 +675,6 @@ def ESP_Update(processHandle, clientBaseAddress, Options, Offsets, SharedBombSta
     except Exception:
         pass
 
-    # End frame
     try:
         pme.end_drawing()
     except Exception:

@@ -96,6 +96,26 @@ class ProcMemHandler:
         return matrix
 
     @staticmethod
+    def ReadMatrix3x4(proc, address):
+        """Read a 3x4 transform matrix (row-major) commonly used for nodeToWorld.
+        Returns a flat tuple of 12 floats.
+        """
+        bytes_ = ProcMemHandler.ReadBytes(proc, address, 4 * 12)
+        return struct.unpack('12f', bytes_)
+
+    @staticmethod
+    def ReadNodeToWorldPosition(proc, address):
+        """Return translation component of a 3x4 nodeToWorld matrix as Vector3.
+        Falls back to zeros on failure.
+        """
+        try:
+            m = ProcMemHandler.ReadMatrix3x4(proc, address)
+            # translation is the 4th column (indices 3,7,11) in row-major 3x4
+            return Vector3(m[3], m[7], m[11])
+        except Exception:
+            return Vector3(0.0, 0.0, 0.0)
+
+    @staticmethod
     def WriteInt(proc, address, value):
         return proc.write_int(address, value)
 

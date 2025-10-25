@@ -30,11 +30,9 @@ def Bhop_Update(processHandle, clientBaseAddress, Offsets):
 
 
 def BhopThreadFunction(Options, Offsets):
-    """Standalone loop for bhop to avoid sleeping in the overlay frame."""
     connector = ProcessConnector("cs2.exe", modules=["client.dll"])
     while True:
         try:
-            # Respect option toggle; idle lightly when disabled
             if not Options.get("EnableBhop", False):
                 time.sleep(0.01)
                 continue

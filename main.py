@@ -105,7 +105,7 @@ if __name__ == "__main__":
     SharedOffsets.offset = globals.GAME_OFFSETS
 
     SharedRuntime = Manager.Namespace()
-    SharedRuntime.spectators = []  # populated live by features/spectator.py
+    SharedRuntime.spectators = []  
     SharedOptions["EnableShowSpectators"] = True
     DEBUG_FAKE_SPECS = False
     if DEBUG_FAKE_SPECS and not SharedRuntime.spectators and SharedOptions.get("EnableShowSpectators", False):
@@ -117,7 +117,11 @@ if __name__ == "__main__":
     # Overlay
     esp.pme.overlay_init(title="ESP-Overlay")
     fps = esp.pme.get_monitor_refresh_rate()
-    esp.pme.set_fps(fps)
+    try:
+        target_fps = min(max(int(fps) + 20, 90), 240)
+    except Exception:
+        target_fps = fps
+    esp.pme.set_fps(target_fps)
 
     # FOV changer
     FOV_proc = multiprocessing.Process(target=fovchanger.FovChangerThreadFunction, args=(SharedOptions, SharedOffsets,))
@@ -179,9 +183,6 @@ if __name__ == "__main__":
         try:
             esp.ESP_Update(ProcessObject, ClientModuleAddress, SharedOptions, SharedOffsets, SharedBombState, SharedRuntime)
 
-            # NOTE: Spec List is rendered inside features/esp.py frame (between begin_drawing/end_drawing).
-            # Do not draw it here; this runs outside the active frame. Just touch the runtime list
-            # so we know it's alive; esp.ESP_Update will render it.
             try:
                 _ = len(SharedRuntime.spectators)
             except Exception:
@@ -190,8 +191,6 @@ if __name__ == "__main__":
             if SharedOptions["EnableAimbot"] and win32api.GetAsyncKeyState(SharedOptions["AimbotKey"]) & 0x8000:
                 aimbot.Aimbot_Update(ProcessObject, ClientModuleAddress, SharedOffsets, SharedOptions, ARDUINO_HANDLE=ARDUINO_HANDLE)
 
-            # bhop and triggerbot/anti-flash are now handled in their own threads
-            # to avoid sleeps inside the overlay frame
             rcs.RecoilControl_Update(ProcessObject, ClientModuleAddress, SharedOffsets, SharedOptions, ARDUINO_HANDLE=ARDUINO_HANDLE)
         except Exception:
             connector.invalidate()

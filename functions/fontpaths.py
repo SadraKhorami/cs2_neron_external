@@ -21,11 +21,6 @@ def font_candidates(
     font_filename: str = DEFAULT_FONT_FILENAME,
     anchors: Optional[Iterable[str]] = None,
 ) -> List[str]:
-    """
-    Build an ordered list of candidate paths for a font file.
-
-    anchors: iterable of directories (absolute or relative) that should be probed first.
-    """
     anchors = list(anchors or [])
     candidates = []
 
@@ -55,7 +50,6 @@ def locate_font(
     font_filename: str = DEFAULT_FONT_FILENAME,
     anchors: Optional[Iterable[str]] = None,
 ) -> Optional[str]:
-    """Return the first existing font path from the candidate list, or None if not found."""
     for cand in font_candidates(font_filename, anchors):
         if os.path.exists(cand):
             return cand

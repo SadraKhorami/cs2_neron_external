@@ -5,7 +5,6 @@ import time
 
 
 def FovChangerThreadFunction(Options, Offsets):
-    """Dedicated FOV changer. Writes only when EnableFovChanger is true and FOV changes."""
     connector = ProcessConnector("cs2.exe", modules=["client.dll"])
 
     last_fov_written = None

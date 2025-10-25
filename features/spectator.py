@@ -5,7 +5,7 @@ from functions import fontpaths
 from functions import logutil
 from functions.process_watcher import ProcessConnector
 
-_SPEC_LOG_LEVEL = 0  # 0: silent, 1: minimal, 2: verbose
+_SPEC_LOG_LEVEL = 0  
 
 def set_spec_log_level(level: int):
     global _SPEC_LOG_LEVEL
@@ -21,12 +21,11 @@ def _log(level: int, msg: str):
     if _SPEC_LOG_LEVEL >= level:
         logutil.debug(msg)
 
-# ---- optional custom font support for pyMeow overlay ------------------------
 _SPEC_FONT_HANDLE = None
-_SPEC_FONT_KEY = None  # (font_path, size) for caching
+_SPEC_FONT_KEY = None
 _SPEC_FONT_SIZE = 16
 _SPEC_FONT_READY = False
-_SPEC_FONT_LOGGED = False  # avoid log spam
+_SPEC_FONT_LOGGED = False 
 
 def _pme_has(obj, name):
     return hasattr(obj, name)
@@ -50,7 +49,6 @@ def _probe_pme_font_caps(pme):
 def init_spec_font(pme, font_path=None, font_size=16):
     global _SPEC_FONT_HANDLE, _SPEC_FONT_KEY, _SPEC_FONT_SIZE, _SPEC_FONT_READY
 
-    # normalize cache key; allow re-init if (path,size) changes
     key = (font_path or "", int(font_size or 16))
     if _SPEC_FONT_HANDLE is not None and _SPEC_FONT_KEY == key:
         return _SPEC_FONT_HANDLE
@@ -59,20 +57,17 @@ def init_spec_font(pme, font_path=None, font_size=16):
     handle = None
     caps = _probe_pme_font_caps(pme)
 
-    # ensure absolute path (some ImGui wrappers reject relative paths)
     if font_path:
         try:
             font_path = os.path.abspath(font_path)
         except Exception:
             pass
 
-    # path 1: direct pyMeow API (rare)
     if caps["direct_api"] and font_path:
         for nm in ("add_font","add_font_from_file","load_font","font_add","FontAdd"):
             f = getattr(pme, nm, None)
             if not f:
                 continue
-            # try str path then bytes path
             for path_variant in (font_path, font_path.encode("utf-8", "ignore")):
                 try:
                     handle = f(path_variant, _SPEC_FONT_SIZE)
@@ -90,7 +85,6 @@ def init_spec_font(pme, font_path=None, font_size=16):
             if handle:
                 break
 
-    # path 2: via pme.imgui (common in some builds)
     if not handle and font_path and (caps["has_imgui"] or caps["has_io"]):
         try:
             imgui = getattr(pme, "imgui", None) or getattr(pme, "ImGui", None) or pme
@@ -101,7 +95,6 @@ def init_spec_font(pme, font_path=None, font_size=16):
                     io = get_io()
                 except Exception:
                     io = None
-            # some builds expose io object directly
             if io is None:
                 io = getattr(imgui, "io", None) or getattr(imgui, "IO", None)
 
@@ -119,7 +112,6 @@ def init_spec_font(pme, font_path=None, font_size=16):
                     getattr(fonts, "AddFont", None)
                 )
                 if add_ttf:
-                    # try str then bytes
                     for path_variant in (font_path, font_path.encode("utf-8", "ignore")):
                         try:
                             handle = add_ttf(path_variant, _SPEC_FONT_SIZE)
@@ -128,7 +120,6 @@ def init_spec_font(pme, font_path=None, font_size=16):
                         except Exception:
                             handle = None
 
-                # try to build/upload font atlas if API exists
                 if handle:
                     build = getattr(fonts, "build", None) or getattr(fonts, "Build", None)
                     if build:
@@ -169,7 +160,6 @@ class _FontScope:
     def __enter__(self):
         if not self.font:
             return self
-        # prefer ImGui push if present
         imgui = getattr(self.pme, "imgui", None) or getattr(self.pme, "ImGui", None) or self.pme
         if imgui:
             for nm in ("push_font", "PushFont"):
@@ -181,7 +171,6 @@ class _FontScope:
                         return self
                     except Exception:
                         pass
-        # fallback to any direct pme push
         for nm in ("push_font", "font_push", "PushFont"):
             f = getattr(self.pme, nm, None)
             if f:
@@ -216,7 +205,6 @@ class _FontScope:
                     pass
         return False
 
-# ---- styled text fallback (when custom font isn't available) ---------------
 def _draw_text_styled(pme, text, x, y, fontSize, color):
     """Draw text with a soft outline/shadow so default overlay font looks cleaner."""
     try:
@@ -238,7 +226,6 @@ def _draw_text_styled(pme, text, x, y, fontSize, color):
         except Exception:
             pass
 
-# ---- Observer modes
 OBS_MODE_NONE      = 0
 OBS_MODE_DEATHCAM  = 1
 OBS_MODE_FREEZECAM = 2
@@ -386,7 +373,6 @@ def is_dead(h, pawn, off):
 def resolve_local_pawn(h, client, off, entlist_ptr):
     steps = []
 
-    # A) via LocalPlayerController -> m_hPlayerPawn
     local_ctrl = rd_ptr(h, client + off.dwLocalPlayerController)
     steps.append(f"local_ctrl={fmtp(local_ctrl)}")
     if local_ctrl:
@@ -409,7 +395,6 @@ def resolve_local_pawn(h, client, off, entlist_ptr):
     if is_valid_ptr(lp3) and is_probably_pawn(h, lp3, off):
         return lp3, "C(handle)", steps
 
-    # D) enumerate controllers (idx=112) to find exact local controller and reuse m_hPlayerPawn
     if local_ctrl:
         for i in range(1, 64):
             ctrl_i = ent_by_index_112(h, entlist_ptr, i)
@@ -683,7 +668,6 @@ def render_spectator_block(
 
         font_handle = font_handle or init_spec_font(pme, font_path=font_path, font_size=font_size)
 
-        # ----- screen size
         sw = sh = 0
         if isinstance(screen_size, (tuple, list)) and len(screen_size) >= 2:
             sw, sh = int(screen_size[0]), int(screen_size[1])
@@ -718,7 +702,6 @@ def render_spectator_block(
         if not names:
             return
 
-        # ----- layout (compact card)
         pad_x = 14
         pad_y = 12
         title_size = 16
@@ -733,7 +716,6 @@ def render_spectator_block(
         x = sw - block_w - 24
         y = sh // 2 - block_h // 2
 
-        # ----- colors via pyMeow (aligned with GUI palette)
         col_shadow = pme.fade_color(pme.get_color("#000000"), 0.28)
         col_border = pme.fade_color(pme.get_color("#588bc4"), 0.45)
         col_bg     = pme.fade_color(pme.get_color("#101726"), 0.92)

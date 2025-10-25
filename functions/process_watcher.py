@@ -9,11 +9,6 @@ from functions import logutil
 
 
 class ProcessConnector:
-    """
-    Resilient accessor around pymem that keeps a process handle alive, reopens it
-    when the target restarts, and resolves module base addresses with caching.
-    """
-
     def __init__(
         self,
         process_name: str,
@@ -27,7 +22,6 @@ class ProcessConnector:
         self._module_cache: Dict[str, int] = {}
         self._module_whitelist = {m.lower() for m in modules} if modules else set()
 
-    # ------------------------------------------------------------------ helpers
     def _wait_for_process(self) -> pymem.Pymem:
         while True:
             try:
@@ -46,19 +40,16 @@ class ProcessConnector:
                 if module:
                     return module.lpBaseOfDll
             except Exception:
-                # Process probably exited; drop handles and retry
                 self.invalidate()
                 continue
 
             logutil.debug(f"[proc] waiting for module {module_name} ...")
             time.sleep(self.poll_interval)
 
-    # ---------------------------------------------------------------- interface
     def ensure_process(self) -> pymem.Pymem:
         with self._lock:
             if self._proc is not None:
                 try:
-                    # accessing handle raises if process is gone
                     _ = self._proc.process_handle
                     return self._proc
                 except Exception:

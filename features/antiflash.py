@@ -5,7 +5,6 @@ import time
 
 
 def AntiFlashThreadFunction(Options, Offsets):
-    """Dedicated anti-flash worker. Writes only when value changes."""
     connector = ProcessConnector("cs2.exe", modules=["client.dll"])
 
     last_value = None
