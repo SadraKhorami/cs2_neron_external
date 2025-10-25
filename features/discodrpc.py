@@ -4,7 +4,7 @@ import time
 def DiscordRpcThread(Options):
 	while True:
 		try:
-			presence = Presence(1277586728517107744)
+			presence = Presence(1431365962321629185)
 			presence.connect()
 			a = False
 			while True:
@@ -13,7 +13,7 @@ def DiscordRpcThread(Options):
 						try:
 							presence.update(
 									state="cs2_neron_external",
-									details="External CS2 research tool — ESP · Aimbot · Triggerbot (analysis only)",
+									details="External CS2 Cheat — ESP · Aimbot · Triggerbot",
 									start=int(time.time()),
 									large_image="cs2_neron",
 									large_text="cs2_neron_external",
