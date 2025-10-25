@@ -34,7 +34,7 @@ pip install pyMeow
 - `Insert` — toggle GUI visibility.
 - `Home` — toggle stream-proof mode for GUI and ESP overlay.
 
-Additional keybinds (aimbot, triggerbot, etc.) are configurable inside the GUI. Custom UI fonts live in `fonts/inter-semibold.ttf`.
+Additional keybinds (aimbot, triggerbot, etc.) are configurable inside the GUI.
 
 Offsets are fetched at runtime from the CS2 dumper repo; if the request fails, provide manual dumps under `output/`. Enable verbose logging with `NERON_DEBUG=1`.
 
