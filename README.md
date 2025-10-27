@@ -12,7 +12,7 @@ External enhancement suite for Counter-Strike 2 featuring ESP overlay, aimbot, t
 
 ## Gallery
 <p align="center">
-  <img src="https://cdn.discordapp.com/attachments/1279421698571112542/1431076949828046980/864shots_so.png?ex=68fc19c4&is=68fac844&hm=89910bb9bdac4f5a406e4465bb5e01255ab4dd2092983bfbd7a70ad76997d5f7&" alt="NERON ESP Overlay preview" width="720">
+  <img src="https://cdn.discordapp.com/attachments/1279421698571112542/1432515665532551299/image.png?ex=690155ad&is=6900042d&hm=ea4cd3b3953de121e358076554e18d241611eb3a21ed72ee104a075c3abeba9b&" alt="NERON ESP Overlay preview" width="720">
 </p>
 <p align="center">
   <img src="https://cdn.discordapp.com/attachments/1279421698571112542/1431074714909937785/telegram-cloud-document-4-6042136322448039029.jpg?ex=68fc17b0&is=68fac630&hm=63c8c4c837da967bd4d9d90da2af9983e7b01601a190599b2582b36f1dadfcb1&" alt="NERON DearPyGui control panel preview" width="720">
