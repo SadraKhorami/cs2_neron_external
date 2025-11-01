@@ -1,0 +1,28 @@
+refactor(esp): modularize ESP into package; restore bomb card + spectator styles; add instant visible-box; fix lag
+
+Summary
+- Split monolithic features/esp.py into a clean package:
+  - features/esp/core.py: two‑pass pipeline (scan world → fresh‑matrix draw), spectator HUD, bomb card.
+  - features/esp/draw.py: box, skeleton, labels, segmented health bar, restored bomb status card visuals.
+  - features/esp/colors.py: color cache + HP gradient helpers.
+  - features/esp/fonts.py: font locate/load (Raylib + fallback), crisp text.
+  - features/esp/visibility.py: CS2‑style spotted‑by‑mask visibility checks.
+  - features/esp/__init__.py: exposes pme and ESP_Update for main.py.
+
+- Restore visuals to match previous build:
+  - Spectator list: restored font path/id/handle usage.
+  - Bomb status card: re‑implemented previous card UI (dimensions, colors, progress).
+
+- Fix camera‑flick ESP lag:
+  - Two‑pass ESP: scan world (no projection), then draw with a single fresh view matrix.
+
+- Add visible check (box):
+  - New option ESP_VisibleCheckBox (default false) and GUI toggle under "Renderers".
+  - Box turns white only when enemy is not visible to local (spotted‑by‑mask), switching instantly (no sticky delay).
+
+- GUI
+  - ESP & Visuals → Renderers: added "Visible check (box)".
+
+- Cleanup
+  - Removed old monolith features/esp.py and unused paths; preserved styles and behavior.
+

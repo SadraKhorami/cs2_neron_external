@@ -336,6 +336,7 @@ class NERON_GUI:
                     r1c2 = dpg.add_group()
                     self._config_checkbox("Skeleton", "EnableESPSkeletonRendering", parent=r1c1)
                     self._config_checkbox("Box", "EnableESPBoxRendering", parent=r1c1)
+                    self._config_checkbox("Visible check", "ESP_VisibleCheckBox", parent=r1c2)
                     self._config_checkbox("Tracer", "EnableESPTracerRendering", parent=r1c2)
                     self._config_checkbox("Team Check", "EnableESPTeamCheck", parent=r1c2)
 
@@ -570,3 +571,4 @@ class NERON_GUI:
 def run_gui(Options, Runtime):
     gui = NERON_GUI(Options, Runtime)
     gui.run()
+

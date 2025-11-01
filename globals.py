@@ -63,6 +63,8 @@ CHEAT_SETTINGS = {
     "ESP_BoxThicknessScale": 1.0,
     "ESP_HealthBarThicknessScale": 1.0,
 
+    "ESP_VisibleCheckBox": False,
+
 }
 
 
